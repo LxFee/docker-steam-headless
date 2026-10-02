@@ -18,6 +18,7 @@ Easily deploy a Steam Docker instance in seconds.
 - Support for Flatpak and Appimage installation
 - Root access
 - Based on Debian Trixie
+- Chinese Pinyin input with Fcitx5 and Noto CJK fonts ([usage](./docs/chinese-input.md))
 
 ---
 ## Notes:
@@ -62,9 +63,14 @@ If your host is already running X, you can just use that. To do this, be sure to
 
 
 ---
-## Running locally:
+## Build and publish this Fork:
 
-For a development environment, I have created a script in the devops directory.
+This Fork publishes Debian / amd64 images to `ghcr.io/lxfee/steam-headless`
+(the workflow uses the current repository owner's lowercase name).
+Master builds publish `latest`, `debian` and full commit SHA tags; Git tags and
+manual runs are also supported. Pull requests validate and build without logging
+in or publishing. See [build and GHCR publication](./docs/build-publish.md)
+for setup, tag rules, local builds and runner disk/cache details.
 
 
 ---

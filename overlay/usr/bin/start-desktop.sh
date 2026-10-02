@@ -33,6 +33,8 @@ export XDG_DATA_HOME="${USER_HOME:?}/.local/share"
 # EXECUTE PROCESS:
 # Wait for the X server to start
 wait_for_x
+# Configure the input method before launching any desktop applications.
+source /usr/bin/configure-input-method.sh
 # Install/Upgrade user apps
 if [[ ! -f /tmp/.desktop-apps-updated ]]; then
     xterm -geometry 200x50+0+0 -ls -e /bin/bash -c "
