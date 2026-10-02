@@ -12,15 +12,6 @@ set -e
 
 state_dir=/run/udev-input-fix
 
-# Number of consecutive seconds the Sunshine/passthrough input devices must
-# be absent before the watcher re-arms itself. Tune via env var if needed.
-ABSENCE_DEBOUNCE_SECONDS="${ABSENCE_DEBOUNCE_SECONDS:-10}"
-if ! [[ "${ABSENCE_DEBOUNCE_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
-    echo "WARNING: ABSENCE_DEBOUNCE_SECONDS must be a positive integer; using the default of 10 seconds" >&2
-    ABSENCE_DEBOUNCE_SECONDS=10
-fi
-ABSENCE_DEBOUNCE_SECONDS=$((10#${ABSENCE_DEBOUNCE_SECONDS}))
-
 # CATCH TERM SIGNAL:
 _term() {
     kill -TERM "${sync_pid:-}" 2>/dev/null
@@ -76,32 +67,23 @@ fi
 dumb-udev &
 dumb_udev_pid=$!
 
-absent_seconds=0
 while true; do
     sync_input_nodes
     if sunshine_inputs_present; then
-        # Devices are present again - cancel any debounce countdown in progress.
-        absent_seconds=0
         if [[ ! -e "${state_dir}/xorg-restarted" ]]; then
             # Sunshine creates its virtual input devices on client connect. In
             # restricted containers with a private /dev, the sysfs devices may
             # exist before /dev/input/event* nodes are visible to Xorg. Build
-            # the missing nodes, then restart Xorg once so it enumerates them
-            # cleanly.
+            # the missing nodes; the build-patched dumb-udev service announces
+            # keyboard/mouse devices through udev hotplug without restarting Xorg.
             sleep 2
             sync_input_nodes
-            supervisorctl restart xorg >/dev/null 2>&1 || true
+            echo "Sunshine input devices announced through udev hotplug"
             : >"${state_dir}/xorg-restarted"
         fi
-    else
-        if [[ -e "${state_dir}/xorg-restarted" ]]; then
-            absent_seconds=$((absent_seconds + 1))
-            if ((absent_seconds >= ABSENCE_DEBOUNCE_SECONDS)); then
-                rm -f "${state_dir}/xorg-restarted"
-                absent_seconds=0
-            fi
-        fi
     fi
+    # Keep the legacy marker for the container lifetime, including disconnects
+    # and watcher restarts. Never restart Xorg: doing so also stops Sunshine.
 
     sleep 1
 done &

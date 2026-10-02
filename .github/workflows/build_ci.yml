@@ -24,12 +24,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate shell scripts and input method
+      - name: Validate shell scripts, input method and udev hotplug
         shell: bash
         run: |
           set -euo pipefail
-          bash -n overlay/usr/bin/configure-input-method.sh overlay/usr/bin/start-desktop.sh tests/input-method.sh
+          bash -n overlay/usr/bin/configure-input-method.sh overlay/usr/bin/start-desktop.sh overlay/usr/bin/start-dumb-udev.sh tests/input-method.sh
           bash tests/input-method.sh
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_uinput.py' -v
 
       # Hosted runners have limited disk space. Remove only unused SDKs/tools,
       # not Docker, /var/lib/docker or the BuildKit cache.

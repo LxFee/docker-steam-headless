@@ -555,6 +555,18 @@ RUN \
 # Add FS overlay
 COPY overlay /
 
+# Build-only compatibility patch and regression tests. Discover the installed
+# module instead of depending on the distro's Python minor version.
+COPY scripts/patch-dumb-udev.py /tmp/steam-build/scripts/patch-dumb-udev.py
+COPY tests /tmp/steam-build/tests
+RUN set -eu; \
+    test "${DUMB_UDEV_VERSION}" = "64d1427"; \
+    service="$(python3 -c 'import importlib.util; print(importlib.util.find_spec("dumb_udev.service").origin)')"; \
+    python3 /tmp/steam-build/scripts/patch-dumb-udev.py "$service"; \
+    UINPUT_HELPER=/usr/bin/start-dumb-udev.sh UINPUT_SERVICE="$service" \
+        PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s /tmp/steam-build/tests -p 'test_uinput.py' -v; \
+    rm -rf /tmp/steam-build
+
 # Set display environment variables
 ENV \
     DISPLAY_CDEPTH="24" \

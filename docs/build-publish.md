@@ -41,14 +41,38 @@ SHA 标签使用完整 commit SHA，不使用容易冲突的短 SHA，也不随�
 ## 本地构建与验证
 
 ```sh
-bash -n overlay/usr/bin/configure-input-method.sh overlay/usr/bin/start-desktop.sh tests/input-method.sh
+bash -n overlay/usr/bin/configure-input-method.sh overlay/usr/bin/start-desktop.sh overlay/usr/bin/start-dumb-udev.sh tests/input-method.sh
 bash tests/input-method.sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_uinput.py' -v
 docker build -f Dockerfile.debian -t steam-headless:local .
 git diff --check
 ```
 
-CI 在构建前执行同样的 Bash 语法检查和无显示服务器的输入法测试。
+CI 在构建前执行同样的 Bash 语法检查、无显示服务器的输入法测试和 uinput 回归测试。
 PR 也完整构建 Dockerfile，但不进行桌面、GPU 或远程串流实测。
+
+## dumb-udev 输入热插拔的职责
+
+镜像负责输入热插拔兼容，不由部署启动钩子修改镜像内部源码：
+
+- `overlay/usr/bin/start-dumb-udev.sh` 直接保留 legacy `xorg-restarted` marker，
+  在输入设备断连、长时间消失和 watcher 重启后均不清除；不重启 Xorg，避免连带停止 Sunshine。
+  marker 位于容器临时 `/run`，重建容器会重新初始化。旧 debounce 环境变量不再使用。
+- Debian 和 Arch Dockerfile 固定 `DUMB_UDEV_VERSION=64d1427`，构建时通过 Python
+  模块发现安装路径，再运行独立 `scripts/patch-dumb-udev.py`。
+  补丁将键盘、鼠标、触屏、笔及回退手柄分类写入 udev data，修正 subsystem/device-type
+  hash 的网络字节序。完整上游源码 SHA-256 和替换块均检查，输出先编译验证；
+  未知版本、漂移或部分补丁必须导致构建失败，不能静默跳过。
+- `tests/test_uinput.py` 属于镜像仓库：离线 fixture 验证分类、header hash 字节序、
+  失败闭合及 helper marker 行为；Docker 构建还验证实际安装的 service 等于测试输出。
+  构建脚本与测试临时目录在成功后删除，不安装运行时补丁 hook。
+- 升级 dumb-udev 时同步评审补丁、源码校验值、fixture 和测试，不仅修改版本参数。
+  Arch 同步接入补丁是因为共享 overlay；发布 CI 仍只构建 Debian/amd64。
+
+GitOps 只负责部署镜像、设备权限、71 虚拟显示器及 Sunshine 配置。
+先完成新镜像构建并成功发布 `latest`，再推送删除旧 72 hook 的 GitOps 变更；
+GitOps 的 Pod template `image-revision` annotation 用于触发拉取 `latest` 的 rollout，
+不是不可变镜像版本或发布凭证。
 
 ## Hosted runner 磁盘与缓存
 
